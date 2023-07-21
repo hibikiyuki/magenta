@@ -97,7 +97,9 @@ def run(config_map):
   if FLAGS.output_dir is None:
     raise ValueError('`--output_dir` is required.')
   tf.gfile.MakeDirs(FLAGS.output_dir)
-  if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate':
+  # if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate':
+  #   raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
+  if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate' and FLAGS.mode != 'extrapolate':
     raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
 
   if FLAGS.config not in config_map:
@@ -170,6 +172,15 @@ def run(config_map):
     results = model.sample(
         n=FLAGS.num_outputs,
         length=config.hparams.max_seq_len,
+        temperature=FLAGS.temperature)
+  elif FLAGS.mode == 'extrapolate':
+    logging.info('Extrapolating...')
+    _, mu, _ = model.encode([input_1, input_2])
+    z = np.array([
+        _slerp(mu[0], mu[1], t) for t in np.linspace(0, 2, FLAGS.num_outputs)])  # 0 to 2 instead of 0 to 1
+    results = model.decode(
+        length=config.hparams.max_seq_len,
+        z=z,
         temperature=FLAGS.temperature)
 
   basename = os.path.join(
