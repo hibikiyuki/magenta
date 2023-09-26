@@ -107,11 +107,15 @@ def run(config_map):
   config = config_map[FLAGS.config]
   config.data_converter.max_tensors_per_item = None
 
-  if FLAGS.mode == 'interpolate':
+  # if FLAGS.mode == 'interpolate':
+  if FLAGS.mode == 'interpolate' or FLAGS.mode == 'extrapolate':
     if FLAGS.input_midi_1 is None or FLAGS.input_midi_2 is None:
+      # raise ValueError(
+      #     '`--input_midi_1` and `--input_midi_2` must be specified in '
+      #     '`interpolate` mode.')
       raise ValueError(
           '`--input_midi_1` and `--input_midi_2` must be specified in '
-          '`interpolate` mode.')
+          '`interpolate` or `exterpolate` mode.')
     input_midi_1 = os.path.expanduser(FLAGS.input_midi_1)
     input_midi_2 = os.path.expanduser(FLAGS.input_midi_2)
     if not os.path.exists(input_midi_1):
