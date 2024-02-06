@@ -69,6 +69,10 @@ flags.DEFINE_string(
     'log', 'INFO',
     'The threshold for what messages will be logged: '
     'DEBUG, INFO, WARN, ERROR, or FATAL.')
+flags.DEFINE_string(
+    'z_vector_file', None,
+    'The path to the .npy file containing the z vector '
+    'to use for generation in `single_z` mode.')
 
 
 def _slerp(p0, p1, t):
@@ -99,7 +103,7 @@ def run(config_map):
   tf.gfile.MakeDirs(FLAGS.output_dir)
   # if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate':
   #   raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
-  if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate' and FLAGS.mode != 'extrapolate':
+  if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate' and FLAGS.mode != 'extrapolate' and FLAGS.mode != 'single_z':
     raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
 
   if FLAGS.config not in config_map:
@@ -186,6 +190,23 @@ def run(config_map):
         length=config.hparams.max_seq_len,
         z=z,
         temperature=FLAGS.temperature)
+  elif FLAGS.mode == 'single_z':
+        if FLAGS.z_vector_file is None:
+            raise ValueError('`--z_vector_file` must be specified in `single_z` mode.')
+        
+        # .npyファイルからzベクトルをロード
+        z_vector_path = os.path.expanduser(FLAGS.z_vector_file)
+        if not os.path.exists(z_vector_path):
+            raise ValueError('z vector file not found: %s' % FLAGS.z_vector_file)
+        z_vector = np.load(z_vector_path) * 1
+        if z_vector.ndim != 1:
+            raise ValueError('The loaded z vector must be a 1D array.')
+        
+        logging.info('Generating from a single z vector...')
+        results = model.decode_single_z(
+            z=z_vector,
+            length=config.hparams.max_seq_len,
+            temperature=FLAGS.temperature)
 
   basename = os.path.join(
       FLAGS.output_dir,

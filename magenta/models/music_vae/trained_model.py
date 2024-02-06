@@ -355,6 +355,43 @@ class TrainedModel(object):
         outputs.extend(self._sess.run(self._outputs, feed_dict))
     return outputs[:n]
 
+  def decode_single_z(self, z, length=None, temperature=1.0, c_input=None):
+        """
+        Decodes a single latent vector into NoteSequences.
+
+        Args:
+          z: A single latent vector to decode.
+          length: The maximum length of a sample in decoder iterations. Required
+            if end tokens are not being used.
+          temperature: The softmax temperature to use (if applicable).
+          c_input: Control sequence (if applicable).
+        
+        Returns:
+          A list of decodings as NoteSequence objects.
+        
+        Raises:
+          RuntimeError: If called for a non-conditional model.
+          ValueError: If `length` is not specified and an end token is not being
+            used.
+        """
+        if not self._config.hparams.z_size:
+            raise RuntimeError('Cannot decode with a non-conditional model.')
+
+        if not length and self._config.data_converter.end_token is None:
+            raise ValueError(
+                'A length must be specified when the end token is not used.')
+        
+        # `z`をバッチの形式に変換するため、次元を追加
+        z = np.expand_dims(z, axis=0)  # zを[1, z_size]の形状に変換
+        
+        # デコード処理を実行し、結果を取得
+        decoded_tensors = self.decode_to_tensors(z, length, temperature, c_input, return_full_results=False)
+        
+        # デコードされたテンソルからNoteSequenceオブジェクトを生成
+        note_sequences = self._config.data_converter.from_tensors(decoded_tensors)
+        
+        return note_sequences
+
   def interpolate(self, start_sequence, end_sequence, num_steps,
                   length=None, temperature=1.0, assert_same_length=True):
     """Interpolates between a start and an end NoteSequence.

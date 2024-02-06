@@ -1,0 +1,74 @@
+import os
+from magenta.models.music_vae import configs
+from magenta.models.music_vae import TrainedModel
+import note_seq
+import tensorflow.compat.v1 as tf
+import numpy as np
+tf.disable_v2_behavior()
+
+def encode_note_sequence(note_sequence_path, model_config, checkpoint_path, batch_size=1):
+    """
+    指定されたMIDIファイルのnote_sequenceをエンコードして、対応する潜在ベクトルzを返します。
+
+    Args:
+    - note_sequence_path: エンコードするMIDIファイルのパス。
+    - model_config: 使用するモデルの設定名。
+    - checkpoint_path: モデルのチェックポイントファイルまたはディレクトリのパス。
+    - batch_size: バッチサイズ（デフォルトは1）。
+
+    Returns:
+    - z: note_sequenceに対応する潜在ベクトル。
+    """
+    # MIDIファイルからNoteSequenceを作成
+    note_sequence = note_seq.midi_file_to_note_sequence(note_sequence_path)
+
+    # モデル設定を取得
+    config = configs.CONFIG_MAP[model_config]
+
+    # TrainedModelインスタンスを作成
+    model = TrainedModel(
+        config=config,
+        batch_size=batch_size,
+        checkpoint_dir_or_path=checkpoint_path)
+
+    # NoteSequenceをエンコード
+    z, _, _ = model.encode([note_sequence])
+
+    return z
+
+def save_latent_vectors(directory, output_directory, model_config, checkpoint_path, batch_size=1):
+    """
+    指定されたディレクトリ内の全MIDIファイルに対して潜在ベクトルzを計算し、保存します。
+
+    Args:
+    - directory: MIDIファイルが含まれているディレクトリのパス。
+    - output_directory: 生成されたzベクトルを保存するディレクトリのパス。
+    - model_config: 使用するモデルの設定名。
+    - checkpoint_path: モデルのチェックポイントファイルまたはディレクトリのパス。
+    - batch_size: バッチサイズ（デフォルトは1）。
+    """
+    # 出力ディレクトリが存在しない場合は作成
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+    
+    # 指定されたディレクトリ内の全MIDIファイルを探索
+    for filename in os.listdir(directory):
+        if filename.endswith(".mid") or filename.endswith(".midi"):
+            filepath = os.path.join(directory, filename)
+            try:
+                # MIDIファイルから潜在ベクトルzを計算
+                z = encode_note_sequence(filepath, model_config, checkpoint_path, batch_size)
+                # zをファイルとして保存
+                output_filepath = os.path.join(output_directory, filename + '.npy')
+                np.save(output_filepath, z)
+                print(f"Saved: {output_filepath}")
+            except Exception as e:
+                print(f"Error processing {filepath}: {e}")
+
+# 使用例
+directory = 'C:\\Users\\hibiki\\OneDrive\\ドキュメント\\Python Scripts\\midi_2bar'
+output_directory = 'output_z'
+model_config = 'cat-mel_2bar_big'  # 例: 'mel_2bar_small'
+checkpoint_path = r'C:\Users\hibiki\Documents\checkpoints\cat-mel_2bar_big.tar'
+
+save_latent_vectors(directory, output_directory, model_config, checkpoint_path)
