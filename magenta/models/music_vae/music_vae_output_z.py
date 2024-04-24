@@ -7,6 +7,8 @@ tf.disable_v2_behavior()
 
 def encode_note_sequence(note_sequence_path, model_config, checkpoint_path, batch_size=1):
     """
+    属性ベクトル加算減算が上手くいくことを実証するため、一定のzベクトルを用意したい。
+    そこでMIDIファイルのパスを入れると、zを出してくれる。
     指定されたMIDIファイルのnote_sequenceをエンコードして、対応する潜在ベクトルzを返します。
 
     Args:

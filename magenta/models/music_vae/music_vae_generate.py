@@ -101,9 +101,14 @@ def run(config_map):
   if FLAGS.output_dir is None:
     raise ValueError('`--output_dir` is required.')
   tf.gfile.MakeDirs(FLAGS.output_dir)
+  """
+  実行できるモードに、外挿モードとzベクトルモードを追加。
+  なお、外挿は思ってたのと違った
+  """
   # if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate':
   #   raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
-  if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate' and FLAGS.mode != 'extrapolate' and FLAGS.mode != 'single_z':
+  if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate' and \
+    FLAGS.mode != 'extrapolate' and FLAGS.mode != 'single_z':
     raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
 
   if FLAGS.config not in config_map:
@@ -111,6 +116,10 @@ def run(config_map):
   config = config_map[FLAGS.config]
   config.data_converter.max_tensors_per_item = None
 
+  """
+  外挿モードの時にinput_midiが2つ無い場合でもエラーを吐くようにする。
+  それに伴いエラー文も微修正。
+  """
   # if FLAGS.mode == 'interpolate':
   if FLAGS.mode == 'interpolate' or FLAGS.mode == 'extrapolate':
     if FLAGS.input_midi_1 is None or FLAGS.input_midi_2 is None:
@@ -182,6 +191,10 @@ def run(config_map):
         length=config.hparams.max_seq_len,
         temperature=FLAGS.temperature)
   elif FLAGS.mode == 'extrapolate':
+    """
+    外挿。linspace（等差数列）の最終値を1から2にしただけ。
+    思ってたのと違った
+    """
     logging.info('Extrapolating...')
     _, mu, _ = model.encode([input_1, input_2])
     z = np.array([
@@ -191,22 +204,24 @@ def run(config_map):
         z=z,
         temperature=FLAGS.temperature)
   elif FLAGS.mode == 'single_z':
-        if FLAGS.z_vector_file is None:
-            raise ValueError('`--z_vector_file` must be specified in `single_z` mode.')
-        
-        # .npyファイルからzベクトルをロード
-        z_vector_path = os.path.expanduser(FLAGS.z_vector_file)
-        if not os.path.exists(z_vector_path):
-            raise ValueError('z vector file not found: %s' % FLAGS.z_vector_file)
-        z_vector = np.load(z_vector_path) * 1
-        if z_vector.ndim != 1:
-            raise ValueError('The loaded z vector must be a 1D array.')
-        
-        logging.info('Generating from a single z vector...')
-        results = model.decode_single_z(
-            z=z_vector,
-            length=config.hparams.max_seq_len,
-            temperature=FLAGS.temperature)
+    """
+    zベクトルをこちらで指定した生成。モデルのデコード関数に指定したzを渡す。
+    zはnpyファイルで用意。それから属性ベクトルを足し引きする。
+    """
+    if FLAGS.z_vector_file is None:
+        raise ValueError('`--z_vector_file` must be specified in `single_z` mode.')
+    # .npyファイルからzベクトルをロード
+    z_vector_path = os.path.expanduser(FLAGS.z_vector_file)
+    if not os.path.exists(z_vector_path):
+        raise ValueError('z vector file not found: %s' % FLAGS.z_vector_file)
+    z_vector = np.load(z_vector_path) # - np.load(r"C:\Users\hibiki\Documents\c_diatonic_flattened.npy")
+    if z_vector.ndim != 1:
+        raise ValueError('The loaded z vector must be a 1D array.')
+    logging.info('Generating from a single z vector...')
+    results = model.decode_single_z(
+        z=z_vector,
+        length=config.hparams.max_seq_len,
+        temperature=FLAGS.temperature)
 
   basename = os.path.join(
       FLAGS.output_dir,

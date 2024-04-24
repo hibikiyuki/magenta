@@ -66,9 +66,9 @@ def save_latent_vectors(directory, output_directory, model_config, checkpoint_pa
                 print(f"Error processing {filepath}: {e}")
 
 # 使用例
-directory = 'C:\\Users\\hibiki\\OneDrive\\ドキュメント\\Python Scripts\\midi_2bar'
-output_directory = 'output_z'
-model_config = 'cat-mel_2bar_big'  # 例: 'mel_2bar_small'
-checkpoint_path = r'C:\Users\hibiki\Documents\checkpoints\cat-mel_2bar_big.tar'
+# directory = 'C:\\Users\\hibiki\\OneDrive\\ドキュメント\\Python Scripts\\midi_2bar'
+# output_directory = 'output_z'
+# model_config = 'cat-mel_2bar_big'  # 例: 'mel_2bar_small'
+# checkpoint_path = r'C:\Users\hibiki\Documents\checkpoints\cat-mel_2bar_big.tar'
 
-save_latent_vectors(directory, output_directory, model_config, checkpoint_path)
+# save_latent_vectors(directory, output_directory, model_config, checkpoint_path)

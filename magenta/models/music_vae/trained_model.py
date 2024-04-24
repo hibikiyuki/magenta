@@ -357,22 +357,21 @@ class TrainedModel(object):
 
   def decode_single_z(self, z, length=None, temperature=1.0, c_input=None):
         """
-        Decodes a single latent vector into NoteSequences.
+        FLAGS.modeが'single_z'のときに呼び出される。
+        単一の潜在ベクトルをNoteSequencesにデコードする。
 
         Args:
-          z: A single latent vector to decode.
-          length: The maximum length of a sample in decoder iterations. Required
-            if end tokens are not being used.
-          temperature: The softmax temperature to use (if applicable).
-          c_input: Control sequence (if applicable).
+          z: デコードする単一の潜在ベクトル。
+          length: デコーダの反復におけるサンプルの最大長。終了トークンが使用されていない場合は必須。
+          temperature: 使用するソフトマックス温度（該当する場合）。
+          c_input: 制御シーケンス（該当する場合）。
         
         Returns:
-          A list of decodings as NoteSequence objects.
+          NoteSequenceオブジェクトとしてのデコーディングのリスト。
         
         Raises:
-          RuntimeError: If called for a non-conditional model.
-          ValueError: If `length` is not specified and an end token is not being
-            used.
+          RuntimeError: 非条件付きモデルに対して呼び出された場合。
+          ValueError: lengthが指定されておらず、終了トークンが使用されていない場合。
         """
         if not self._config.hparams.z_size:
             raise RuntimeError('Cannot decode with a non-conditional model.')
