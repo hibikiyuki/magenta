@@ -30,6 +30,8 @@ import note_seq
 import numpy as np
 import tensorflow.compat.v1 as tf
 
+import glob
+
 flags = tf.app.flags
 logging = tf.logging
 FLAGS = flags.FLAGS
@@ -73,6 +75,9 @@ flags.DEFINE_string(
     'z_vector_file', None,
     'The path to the .npy file containing the z vector '
     'to use for generation in `single_z` mode.')
+flags.DEFINE_string(
+    'vectors_dir', None,
+    '生成元となるzを入れておくディレクトリ。')
 
 
 def _slerp(p0, p1, t):
@@ -108,7 +113,7 @@ def run(config_map):
   # if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate':
   #   raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
   if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate' and \
-    FLAGS.mode != 'extrapolate' and FLAGS.mode != 'single_z':
+    FLAGS.mode != 'extrapolate' and FLAGS.mode != 'single_z' and FLAGS.mode != 'vectors':
     raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
 
   if FLAGS.config not in config_map:
@@ -164,6 +169,16 @@ def run(config_map):
         FLAGS.config)
     _check_extract_examples(input_1, FLAGS.input_midi_1, 1)
     _check_extract_examples(input_2, FLAGS.input_midi_2, 2)
+
+  if FLAGS.mode == 'vectors':
+    if FLAGS.vectors_dir is None:
+        raise ValueError('`--z_vector_file` must be specified in `vectors` mode.')
+    npy_path = os.path.expanduser(FLAGS.vectors_dir)
+    if not os.path.exists(npy_path):
+        raise ValueError('Vectors not found: %s' % FLAGS.vectors_dir)
+    npy_files = glob.glob(os.path.join(npy_path, '*.npy'))
+    if not npy_files:  # npy_files リストが空の場合、つまり .npy ファイルが存在しない場合
+        raise ValueError('No .npy files found in directory: %s' % npy_path)
 
   logging.info('Loading model...')
   if FLAGS.run_dir:
@@ -221,6 +236,17 @@ def run(config_map):
     results = model.decode_single_z(
         z=z_vector,
         length=config.hparams.max_seq_len,
+        temperature=FLAGS.temperature)
+  elif FLAGS.mode == 'vectors':
+    """
+    zベクトルの集合のパスを渡して生成
+    """
+    logging.info('Generating from vectors...')
+    arrays = [np.load(file).reshape(-1) for file in npy_files]
+    z = np.stack(arrays)
+    results = model.decode(
+        length=config.hparams.max_seq_len,
+        z=z,
         temperature=FLAGS.temperature)
 
   basename = os.path.join(
