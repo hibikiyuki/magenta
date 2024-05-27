@@ -242,7 +242,7 @@ def run(config_map):
     zベクトルの集合のパスを渡して生成
     """
     logging.info('Generating from vectors...')
-    arrays = [np.load(file).reshape(-1) for file in npy_files]
+    arrays = [np.load(file) for file in npy_files]
     z = np.stack(arrays)
     results = model.decode(
         length=config.hparams.max_seq_len,
