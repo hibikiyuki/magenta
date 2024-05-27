@@ -102,7 +102,8 @@ def save_z(directory, output_directory, model_config, checkpoint_path):
     for i in range(z.shape[0]):
         # zをファイルとして保存
         output_filepath = os.path.join(output_directory, f'{i:02d}.npy')
-        np.save(output_filepath, np.expand_dims(z[i, :], axis=0))
+        # np.save(output_filepath, np.expand_dims(z[i, :], axis=0))
+        np.save(output_filepath, z[i, :])
         print(f"Saved: {output_filepath}")
 
 
