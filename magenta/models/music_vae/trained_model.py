@@ -133,7 +133,7 @@ class TrainedModel(object):
         saver.restore(self._sess, checkpoint_path)
 
   def sample(self, n=None, length=None, temperature=1.0, same_z=False,
-             c_input=None):
+             c_input=None, savez=False):
     """Generates random samples from the model.
 
     Args:
@@ -146,6 +146,7 @@ class TrainedModel(object):
         batch (if applicable).
       c_input: A sequence of control inputs to use for all samples (if
         applicable).
+      savez: Whether to save latent vector in sample mode.
     Returns:
       A list of samples as NoteSequence objects.
     Raises:
@@ -175,17 +176,30 @@ class TrainedModel(object):
       feed_dict[self._c_input] = c_input
 
     outputs = []
+    zlist = []
     for _ in range(int(np.ceil(n / batch_size))):
       if self._z_input is not None and not same_z:
-        feed_dict[self._z_input] = (
-            np.random.randn(batch_size, z_size).astype(np.float32))
+        # feed_dict[self._z_input] = (
+        #     np.random.randn(batch_size, z_size).astype(np.float32))
+        random_z = np.random.randn(batch_size, z_size).astype(np.float32) # random_zをいったん退避
+        feed_dict[self._z_input] = random_z
+        zlist.append(random_z)
+        # if savez:
+        #   np.save('random_z.npy', random_z)
       outputs.append(self._sess.run(self._outputs, feed_dict))
     samples = np.vstack(outputs)[:n]
+    zlist = np.vstack(zlist)
+    zlist = zlist.reshape(-1, z_size)
+    # np.save('random_z.npy', zlist) # 後で消す
     if self._c_input is not None:
       return self._config.data_converter.from_tensors(
           samples, np.tile(np.expand_dims(c_input, 0), [batch_size, 1, 1]))
     else:
-      return self._config.data_converter.from_tensors(samples)
+      # return self._config.data_converter.from_tensors(samples)
+      if savez:
+        return self._config.data_converter.from_tensors(samples), zlist # savezがTrueならzlistもreturnするよ
+      else:
+        return self._config.data_converter.from_tensors(samples)
 
   def encode(self, note_sequences, assert_same_length=False):
     """Encodes a collection of NoteSequences into latent vectors.

@@ -7,12 +7,12 @@ import numpy as np
 import glob
 tf.disable_v2_behavior()
 
-def encode_note_sequence(note_sequence_path, model_config, checkpoint_path, batch_size=1):
+def encode_note_sequence(midi_path, model_config, checkpoint_path, batch_size=1):
     """
     指定されたMIDIファイルのnote_sequenceをエンコードして、対応する潜在ベクトルzを返します。
 
     Args:
-    - note_sequence_path: エンコードするMIDIファイルのパス。
+    - midi_path: エンコードするMIDIファイルのパス。
     - model_config: 使用するモデルの設定名。
     - checkpoint_path: モデルのチェックポイントファイルまたはディレクトリのパス。
     - batch_size: バッチサイズ（デフォルトは1）。
@@ -21,7 +21,7 @@ def encode_note_sequence(note_sequence_path, model_config, checkpoint_path, batc
     - z: note_sequenceに対応する潜在ベクトル。
     """
     # MIDIファイルからNoteSequenceを作成
-    note_sequence = note_seq.midi_file_to_note_sequence(note_sequence_path)
+    note_sequence = note_seq.midi_file_to_note_sequence(midi_path)
 
     # モデル設定を取得
     config = configs.CONFIG_MAP[model_config]
@@ -75,7 +75,8 @@ def save_z(directory, output_directory, model_config, checkpoint_path):
     - output_directory: 生成されたベクトルzを保存するディレクトリのパス。
     - model_config: 使用するモデルの設定名。
     - checkpoint_path: モデルのチェックポイントファイルまたはディレクトリのパス。
-    """    
+    """
+    # この関数はNo examples extracted from NoteSequenceが頻発して使い物にならない
     # 出力ディレクトリが存在しない場合は作成
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -101,11 +102,19 @@ def save_z(directory, output_directory, model_config, checkpoint_path):
     # print(z.shape)
     for i in range(z.shape[0]):
         # zをファイルとして保存
+        # output_filepath = os.path.join(output_directory, (midi_files[i]+'.npy'))
         output_filepath = os.path.join(output_directory, f'{i:02d}.npy')
-        # np.save(output_filepath, np.expand_dims(z[i, :], axis=0))
         np.save(output_filepath, z[i, :])
         print(f"Saved: {output_filepath}")
 
+# directory = r"C:\Users\arkw\GitHub\magenta\tmp\music_vae\generated\adjective01\filtered0610"
+# output_directory = os.path.join(directory, "vectors")
+# model_config = 'cat-mel_2bar_big'
+# checkpoint_path = r"C:\Users\arkw\GitHub\magenta\checkpoints\cat-mel_2bar_big.tar"
+
+# save_z(directory, output_directory, model_config, checkpoint_path)
+
+# print(glob.glob(directory + "/*.mid"))
 
 
 # 使用例
@@ -123,3 +132,11 @@ def save_z(directory, output_directory, model_config, checkpoint_path):
 # checkpoint_path = r'C:\Users\hibiki\Documents\checkpoints\cat-mel_2bar_big.tar'
 
 # save_z(directory, output_directory, model_config, checkpoint_path)
+
+# np.save(output_filepath, np.expand_dims(z[i, :], axis=0)) # もう不要
+
+# def encode_note_sequence(midi_path, model_config, checkpoint_path, batch_size=1):
+
+print(encode_note_sequence(r"C:\Users\arkw\GitHub\magenta\tmp\music_vae_16bar\generated\iec0006\midi\gen_001\hierdec-mel_16bar_sample_2024-06-18_175504-027-of-100.mid", 
+                           "hierdec-mel_16bar", 
+                           r"C:\Users\arkw\GitHub\magenta\checkpoints\hierdec-mel_16bar.tar"))

@@ -78,6 +78,9 @@ flags.DEFINE_string(
 flags.DEFINE_string(
     'vectors_dir', None,
     '生成元となるzを入れておくディレクトリ。')
+flags.DEFINE_bool(
+    'savez', False,
+    'Whether to save latent vector in sample mode.')
 
 
 def _slerp(p0, p1, t):
@@ -113,7 +116,7 @@ def run(config_map):
   # if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate':
   #   raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
   if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate' and \
-    FLAGS.mode != 'extrapolate' and FLAGS.mode != 'single_z' and FLAGS.mode != 'vectors':
+    FLAGS.mode != 'extrapolate' and FLAGS.mode != 'single_z' and FLAGS.mode != 'vectors' and FLAGS.mode != 'vectors_withattr':
     raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
 
   if FLAGS.config not in config_map:
@@ -170,7 +173,7 @@ def run(config_map):
     _check_extract_examples(input_1, FLAGS.input_midi_1, 1)
     _check_extract_examples(input_2, FLAGS.input_midi_2, 2)
 
-  if FLAGS.mode == 'vectors':
+  if FLAGS.mode == 'vectors' or FLAGS.mode == 'vectors_withattr':
     if FLAGS.vectors_dir is None:
         raise ValueError('`--z_vector_file` must be specified in `vectors` mode.')
     npy_path = os.path.expanduser(FLAGS.vectors_dir)
@@ -201,10 +204,20 @@ def run(config_map):
         temperature=FLAGS.temperature)
   elif FLAGS.mode == 'sample':
     logging.info('Sampling...')
-    results = model.sample(
+    # results = model.sample(
+    #     n=FLAGS.num_outputs,
+    #     length=config.hparams.max_seq_len,
+    #     temperature=FLAGS.temperature,
+    #     savez=FLAGS.savez)
+    sampling_outputs = model.sample(
         n=FLAGS.num_outputs,
         length=config.hparams.max_seq_len,
-        temperature=FLAGS.temperature)
+        temperature=FLAGS.temperature,
+        savez=FLAGS.savez)
+    if FLAGS.savez:
+      results, z = sampling_outputs
+    else:
+      results = sampling_outputs
   elif FLAGS.mode == 'extrapolate':
     """
     外挿。linspace（等差数列）の最終値を1から2にしただけ。
@@ -248,6 +261,18 @@ def run(config_map):
         length=config.hparams.max_seq_len,
         z=z,
         temperature=FLAGS.temperature)
+  elif FLAGS.mode == 'vectors_withattr':
+    """
+    zベクトルの集合のパスを渡して生成、そこに属性を付加
+    """
+    logging.info('Generating from vectors...')
+    z_attr = np.load(r"C:\Users\arkw\GitHub\magenta\vectors0701\complexity.npy")
+    arrays = [z_attr + np.load(file) for file in npy_files]
+    z = np.stack(arrays)
+    results = model.decode(
+        length=config.hparams.max_seq_len,
+        z=z,
+        temperature=FLAGS.temperature)
 
   basename = os.path.join(
       FLAGS.output_dir,
@@ -256,6 +281,8 @@ def run(config_map):
   logging.info('Outputting %d files as `%s`...', FLAGS.num_outputs, basename)
   for i, ns in enumerate(results):
     note_seq.sequence_proto_to_midi_file(ns, basename.replace('*', '%03d' % i))
+    if FLAGS.mode == 'sample' and FLAGS.savez:
+      np.save(basename.replace('*', '%03d' % i).replace('mid', 'npy'), z[i, :])
 
   logging.info('Done.')
 
