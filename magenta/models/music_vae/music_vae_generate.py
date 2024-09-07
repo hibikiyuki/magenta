@@ -266,7 +266,17 @@ def run(config_map):
     zベクトルの集合のパスを渡して生成、そこに属性を付加
     """
     logging.info('Generating from vectors...')
-    z_attr = np.load(r"C:\Users\arkw\GitHub\magenta\vectors0701\complexity.npy")
+    # z_attr = np.load(
+    #   r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\average_pitch.npy")
+    z_mode = np.load(
+      r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\mode.npy")
+    z_sync8th = np.load(
+      r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\syncopation_8th.npy")
+    z_sync16th = np.load(
+      r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\syncopation_16th.npy")
+    z_pitch = np.load(
+      r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\average_pitch.npy")
+    z_attr = z_mode + (0.25*z_sync8th + 0.25*z_sync16th + 0.5*z_pitch)
     arrays = [z_attr + np.load(file) for file in npy_files]
     z = np.stack(arrays)
     results = model.decode(
