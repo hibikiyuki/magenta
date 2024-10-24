@@ -71,16 +71,28 @@ flags.DEFINE_string(
     'log', 'INFO',
     'The threshold for what messages will be logged: '
     'DEBUG, INFO, WARN, ERROR, or FATAL.')
-flags.DEFINE_string(
-    'z_vector_file', None,
-    'The path to the .npy file containing the z vector '
-    'to use for generation in `single_z` mode.')
+# flags.DEFINE_string(
+#     'z_vector_file', None,
+#     'The path to the .npy file containing the z vector '
+#     'to use for generation in `single_z` mode.')
 flags.DEFINE_string(
     'vectors_dir', None,
-    '生成元となるzを入れておくディレクトリ。')
+    'Directory to store the source z.')
 flags.DEFINE_bool(
     'savez', False,
     'Whether to save latent vector in sample mode.')
+flags.DEFINE_string(
+    'input_attribute_1', None,
+    'Path of attribute vector 1.')
+flags.DEFINE_string(
+    'input_attribute_2', None,
+    'Path of attribute vector 2.')
+flags.DEFINE_float(
+    'magnitude_1', 0.5,
+    'Magnitude of input_attribute_1.')
+flags.DEFINE_float(
+    'magnitude_2', 0.5,
+    'Magnitude of input_attribute_2.')
 
 
 def _slerp(p0, p1, t):
@@ -109,14 +121,20 @@ def run(config_map):
   if FLAGS.output_dir is None:
     raise ValueError('`--output_dir` is required.')
   tf.gfile.MakeDirs(FLAGS.output_dir)
+
   """
-  実行できるモードに、外挿モードとzベクトルモードを追加。
-  なお、外挿は思ってたのと違った
+  Added extrapolation mode and z vector mode to the executable modes.
+  However, extrapolation was different from what I expected.
+  241024 Update: Various modes added
   """
   # if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate':
   #   raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
   if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate' and \
-    FLAGS.mode != 'extrapolate' and FLAGS.mode != 'single_z' and FLAGS.mode != 'vectors' and FLAGS.mode != 'vectors_withattr':
+      FLAGS.mode != 'extrapolate' and \
+      FLAGS.mode != 'single_z' and \
+      FLAGS.mode != 'vectors' and \
+      FLAGS.mode != 'vectors_withattr' and \
+      FLAGS.mode != 'sample_withattr':
     raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
 
   if FLAGS.config not in config_map:
@@ -125,8 +143,8 @@ def run(config_map):
   config.data_converter.max_tensors_per_item = None
 
   """
-  外挿モードの時にinput_midiが2つ無い場合でもエラーを吐くようにする。
-  それに伴いエラー文も微修正。
+  In extrapolation mode, an error will be thrown even if there are not two input_midi.
+  The error message has also been slightly revised accordingly.
   """
   # if FLAGS.mode == 'interpolate':
   if FLAGS.mode == 'interpolate' or FLAGS.mode == 'extrapolate':
@@ -180,8 +198,21 @@ def run(config_map):
     if not os.path.exists(npy_path):
         raise ValueError('Vectors not found: %s' % FLAGS.vectors_dir)
     npy_files = glob.glob(os.path.join(npy_path, '*.npy'))
-    if not npy_files:  # npy_files リストが空の場合、つまり .npy ファイルが存在しない場合
+    if not npy_files:  # If the npy_files list is empty, i.e. no .npy files exist
         raise ValueError('No .npy files found in directory: %s' % npy_path)
+    
+  if FLAGS.mode == 'sample_withattr':
+    if FLAGS.input_attribute_1 is None or FLAGS.input_attribute_2 is None:
+      raise ValueError(
+          '`--input_attribute_1` and `--input_attribute_2` must be specified in '
+          '`sample_withattr` mode.')
+    input_attribute_1 = os.path.expanduser(FLAGS.input_attribute_1)
+    input_attribute_2 = os.path.expanduser(FLAGS.input_attribute_2)
+    if not os.path.exists(input_attribute_1):
+      raise ValueError('Input attribute_1 not found: %s' % FLAGS.input_attribute_1)
+    if not os.path.exists(input_attribute_2):
+      raise ValueError('Input attribute_2 not found: %s' % FLAGS.input_attribute_2)
+    attributes = [np.load(input_attribute_1), np.load(input_attribute_2)]
 
   logging.info('Loading model...')
   if FLAGS.run_dir:
@@ -214,6 +245,23 @@ def run(config_map):
         length=config.hparams.max_seq_len,
         temperature=FLAGS.temperature,
         savez=FLAGS.savez)
+    if FLAGS.savez:
+      results, z = sampling_outputs
+    else:
+      results = sampling_outputs
+  elif FLAGS.mode == 'sample_withattr':
+    """
+    sampling + attribute
+    """
+    logging.info('Sampling with attributes...')
+    mgs = [FLAGS.magnitude_1, FLAGS.magnitude_2]
+    sampling_outputs = model.sample_withattr(
+        n=FLAGS.num_outputs,
+        length=config.hparams.max_seq_len,
+        temperature=FLAGS.temperature,
+        savez=FLAGS.savez,
+        z_vectors=attributes,
+        magnitudes=mgs)
     if FLAGS.savez:
       results, z = sampling_outputs
     else:
@@ -265,18 +313,23 @@ def run(config_map):
     """
     zベクトルの集合のパスを渡して生成、そこに属性を付加
     """
-    logging.info('Generating from vectors...')
-    # z_attr = np.load(
-    #   r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\average_pitch.npy")
+    logging.info('Generating from vectors with attributes...')
     z_mode = np.load(
-      r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\mode.npy")
+      r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\mode.npy") # +V Major
     z_sync8th = np.load(
       r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\syncopation_8th.npy")
     z_sync16th = np.load(
       r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\syncopation_16th.npy")
     z_pitch = np.load(
-      r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\average_pitch.npy")
-    z_attr = z_mode + (0.25*z_sync8th + 0.25*z_sync16th + 0.5*z_pitch)
+      r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\average_pitch.npy") # +V 高く
+    z_staccato_level = np.load(
+      r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\staccato_level.npy") # +A スタッカート気味
+    z_density = np.load(
+      r"C:\Users\arkw\GitHub\magenta\tmp\attribute0906\note_density.npy") # +A ノート密度
+    # z_arousal = 0.25*z_sync8th + 0.25*z_sync16th + 0.5*z_pitch
+    z_valence = 0.5*(z_mode + z_pitch)
+    z_arousal = 0.5*(z_staccato_level + z_density)
+    z_attr = z_valence
     arrays = [z_attr + np.load(file) for file in npy_files]
     z = np.stack(arrays)
     results = model.decode(

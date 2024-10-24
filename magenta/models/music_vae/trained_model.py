@@ -200,6 +200,82 @@ class TrainedModel(object):
         return self._config.data_converter.from_tensors(samples), zlist # savezがTrueならzlistもreturnするよ
       else:
         return self._config.data_converter.from_tensors(samples)
+      
+  def sample_withattr(self, n=None, length=None, temperature=1.0, same_z=False, 
+                      c_input=None, savez=False, z_vectors=None, magnitudes=[0.5, 0.5]):
+    """Generates random samples with attribute vectors from the model.
+
+    Args:
+      n: The number of samples to return. A full batch will be returned if not
+        specified.
+      length: The maximum length of a sample in decoder iterations. Required
+        if end tokens are not being used.
+      temperature: The softmax temperature to use (if applicable).
+      same_z: Whether to use the same latent vector for all samples in the
+        batch (if applicable).
+      c_input: A sequence of control inputs to use for all samples (if
+        applicable).
+      savez: Whether to save latent vector in sample mode.
+      z_vectors: List of attribute vectors (z).
+      magnitudes: List of magnitudes corresponding to each z vector.
+    Returns:
+      A list of samples as NoteSequence objects.
+    Raises:
+      ValueError: If `length` is not specified and an end token is not being
+        used.
+    """
+    batch_size = self._config.hparams.batch_size
+    n = n or batch_size
+    z_size = self._config.hparams.z_size # (512,)
+    attribute = np.zeros(512)
+
+    if not length and self._config.data_converter.end_token is None:
+      raise ValueError(
+          'A length must be specified when the end token is not used.')
+    length = length or tf.int32.max
+
+    if z_vectors is not None and magnitudes is not None:
+      if len(z_vectors) != len(magnitudes):
+        raise ValueError(
+          "The number of z vectors must match the number of magnitudes.")
+      z_array = np.stack(z_vectors)
+      attribute = np.dot(z_array.T, magnitudes) # (512,)
+
+    feed_dict = {
+        self._temperature: temperature,
+        self._max_length: length
+    }
+
+    if self._z_input is not None and same_z:
+      z = np.random.randn(z_size).astype(np.float32)
+      z = np.tile(z, (batch_size, 1))
+      feed_dict[self._z_input] = z
+
+    if self._c_input is not None:
+      feed_dict[self._c_input] = c_input
+
+    outputs = []
+    zlist = []
+    for _ in range(int(np.ceil(n / batch_size))):
+      if self._z_input is not None and not same_z:
+        # feed_dict[self._z_input] = (
+        #     np.random.randn(batch_size, z_size).astype(np.float32))
+        random_z = np.random.randn(batch_size, z_size).astype(np.float32) + np.tile(attribute, (batch_size, 1)) # random_zをいったん退避
+        feed_dict[self._z_input] = random_z
+        zlist.append(random_z)
+      outputs.append(self._sess.run(self._outputs, feed_dict))
+    samples = np.vstack(outputs)[:n]
+    zlist = np.vstack(zlist)
+    zlist = zlist.reshape(-1, z_size)
+    if self._c_input is not None:
+      return self._config.data_converter.from_tensors(
+          samples, np.tile(np.expand_dims(c_input, 0), [batch_size, 1, 1]))
+    else:
+      # return self._config.data_converter.from_tensors(samples)
+      if savez:
+        return self._config.data_converter.from_tensors(samples), zlist # savezがTrueならzlistもreturnするよ
+      else:
+        return self._config.data_converter.from_tensors(samples)
 
   def encode(self, note_sequences, assert_same_length=False):
     """Encodes a collection of NoteSequences into latent vectors.
