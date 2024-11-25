@@ -93,6 +93,12 @@ flags.DEFINE_float(
 flags.DEFINE_float(
     'magnitude_2', 0.5,
     'Magnitude of input_attribute_2.')
+flags.DEFINE_string(
+    'sample_mean', None,
+    'Path of mean array npy in sample mode.')
+flags.DEFINE_string(
+    'sample_std', None,
+    'Path of std array npy in sample mode.')
 
 
 def _slerp(p0, p1, t):
@@ -128,7 +134,6 @@ def run(config_map):
   241024 Update: Various modes added
   """
   # if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate':
-  #   raise ValueError('Invalid value for `--mode`: %s' % FLAGS.mode)
   if FLAGS.mode != 'sample' and FLAGS.mode != 'interpolate' and \
       FLAGS.mode != 'extrapolate' and \
       FLAGS.mode != 'single_z' and \
@@ -201,18 +206,45 @@ def run(config_map):
     if not npy_files:  # If the npy_files list is empty, i.e. no .npy files exist
         raise ValueError('No .npy files found in directory: %s' % npy_path)
     
-  if FLAGS.mode == 'sample_withattr':
-    if FLAGS.input_attribute_1 is None or FLAGS.input_attribute_2 is None:
-      raise ValueError(
-          '`--input_attribute_1` and `--input_attribute_2` must be specified in '
-          '`sample_withattr` mode.')
-    input_attribute_1 = os.path.expanduser(FLAGS.input_attribute_1)
-    input_attribute_2 = os.path.expanduser(FLAGS.input_attribute_2)
-    if not os.path.exists(input_attribute_1):
-      raise ValueError('Input attribute_1 not found: %s' % FLAGS.input_attribute_1)
-    if not os.path.exists(input_attribute_2):
-      raise ValueError('Input attribute_2 not found: %s' % FLAGS.input_attribute_2)
-    attributes = [np.load(input_attribute_1), np.load(input_attribute_2)]
+  # if FLAGS.mode == 'sample_withattr':
+    # if FLAGS.input_attribute_1 is None or FLAGS.input_attribute_2 is None:
+    #   raise ValueError(
+    #       '`--input_attribute_1` and `--input_attribute_2` must be specified in '
+    #       '`sample_withattr` mode.')
+    # input_attribute_1 = os.path.expanduser(FLAGS.input_attribute_1)
+    # input_attribute_2 = os.path.expanduser(FLAGS.input_attribute_2)
+    # if not os.path.exists(input_attribute_1):
+    #   raise ValueError('Input attribute_1 not found: %s' % FLAGS.input_attribute_1)
+    # if not os.path.exists(input_attribute_2):
+    #   raise ValueError('Input attribute_2 not found: %s' % FLAGS.input_attribute_2)
+    # attributes = [np.load(input_attribute_1), np.load(input_attribute_2)]
+
+  # 後付けの属性ベクトル
+  attributes = []
+  
+  input_attribute_1 = os.path.expanduser(FLAGS.input_attribute_1) if FLAGS.input_attribute_1 else None
+  if input_attribute_1 and os.path.exists(input_attribute_1):
+      attributes.append(np.load(input_attribute_1))
+  else:
+      attributes.append(np.zeros(512))
+
+  input_attribute_2 = os.path.expanduser(FLAGS.input_attribute_2) if FLAGS.input_attribute_2 else None
+  if input_attribute_2 and os.path.exists(input_attribute_2):
+      attributes.append(np.load(input_attribute_2))
+  else:
+      attributes.append(np.zeros(512))
+
+  # 生成時の分布をいじるetc
+  sample_mean = 0
+  sample_std = 1
+
+  sample_mean_path = os.path.expanduser(FLAGS.sample_mean) if FLAGS.sample_mean else None
+  if sample_mean_path and os.path.exists(sample_mean_path):
+    sample_mean = np.load(sample_mean_path)
+
+  sample_std_path = os.path.expanduser(FLAGS.sample_std) if FLAGS.sample_std else None
+  if sample_std_path and os.path.exists(sample_std_path):
+    sample_std = np.load(sample_std_path)
 
   logging.info('Loading model...')
   if FLAGS.run_dir:
@@ -254,14 +286,15 @@ def run(config_map):
     sampling + attribute
     """
     logging.info('Sampling with attributes...')
-    mgs = [FLAGS.magnitude_1, FLAGS.magnitude_2]
     sampling_outputs = model.sample_withattr(
         n=FLAGS.num_outputs,
         length=config.hparams.max_seq_len,
         temperature=FLAGS.temperature,
         savez=FLAGS.savez,
         z_vectors=attributes,
-        magnitudes=mgs)
+        magnitudes=[FLAGS.magnitude_1, FLAGS.magnitude_2],
+        mean=sample_mean,
+        std=sample_std)
     if FLAGS.savez:
       results, z = sampling_outputs
     else:
@@ -344,7 +377,7 @@ def run(config_map):
   logging.info('Outputting %d files as `%s`...', FLAGS.num_outputs, basename)
   for i, ns in enumerate(results):
     note_seq.sequence_proto_to_midi_file(ns, basename.replace('*', '%03d' % i))
-    if FLAGS.mode == 'sample' and FLAGS.savez:
+    if (FLAGS.mode == 'sample' or FLAGS.mode == 'sample_withattr') and FLAGS.savez:
       np.save(basename.replace('*', '%03d' % i).replace('mid', 'npy'), z[i, :])
 
   logging.info('Done.')

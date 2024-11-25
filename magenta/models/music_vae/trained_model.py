@@ -202,7 +202,8 @@ class TrainedModel(object):
         return self._config.data_converter.from_tensors(samples)
       
   def sample_withattr(self, n=None, length=None, temperature=1.0, same_z=False, 
-                      c_input=None, savez=False, z_vectors=None, magnitudes=[0.5, 0.5]):
+                      c_input=None, 
+                      savez=False, z_vectors=None, magnitudes=[0.5, 0.5], mean=None, std=None):
     """Generates random samples with attribute vectors from the model.
 
     Args:
@@ -227,6 +228,7 @@ class TrainedModel(object):
     batch_size = self._config.hparams.batch_size
     n = n or batch_size
     z_size = self._config.hparams.z_size # (512,)
+
     attribute = np.zeros(512)
 
     if not length and self._config.data_converter.end_token is None:
@@ -256,11 +258,20 @@ class TrainedModel(object):
 
     outputs = []
     zlist = []
+
+    rng = np.random.default_rng()
+
+    # What's the FUCKIN' code!?!?
+    # mean = np.load(r"C:\Users\arkw\GitHub\magenta\LoA\mean_array.npy")
+    # std = np.load(r"C:\Users\arkw\GitHub\magenta\LoA\std_array.npy")
+
     for _ in range(int(np.ceil(n / batch_size))):
       if self._z_input is not None and not same_z:
-        # feed_dict[self._z_input] = (
-        #     np.random.randn(batch_size, z_size).astype(np.float32))
-        random_z = np.random.randn(batch_size, z_size).astype(np.float32) + np.tile(attribute, (batch_size, 1)) # random_zをいったん退避
+        # random_z = np.random.normal(loc=mean, scale=std, 
+        #                           size=(batch_size, z_size)).astype(np.float32) \
+        #                             + np.tile(attribute, (batch_size, 1)) # random_zをいったん退避
+        random_z = rng.normal(mean, abs(std), size=(batch_size, z_size)).astype(np.float32) \
+                  + np.tile(attribute, (batch_size, 1))
         feed_dict[self._z_input] = random_z
         zlist.append(random_z)
       outputs.append(self._sess.run(self._outputs, feed_dict))
