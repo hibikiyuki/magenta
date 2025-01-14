@@ -99,6 +99,14 @@ flags.DEFINE_string(
 flags.DEFINE_string(
     'sample_std', None,
     'Path of std array npy in sample mode.')
+flags.DEFINE_list(
+    'attribute_vectors', None,
+    'Path(s) of attribute vectors.'
+)
+flags.DEFINE_list(
+    'vector_amounts', None,
+    'Amount(Power)(s) of attribute_vectors.'
+)
 
 
 def _slerp(p0, p1, t):
@@ -225,14 +233,14 @@ def run(config_map):
   input_attribute_1 = os.path.expanduser(FLAGS.input_attribute_1) if FLAGS.input_attribute_1 else None
   if input_attribute_1 and os.path.exists(input_attribute_1):
       attributes.append(np.load(input_attribute_1))
-  else:
-      attributes.append(np.zeros(512))
+  # else:
+  #     attributes.append(np.zeros(512))
 
   input_attribute_2 = os.path.expanduser(FLAGS.input_attribute_2) if FLAGS.input_attribute_2 else None
   if input_attribute_2 and os.path.exists(input_attribute_2):
       attributes.append(np.load(input_attribute_2))
-  else:
-      attributes.append(np.zeros(512))
+  # else:
+  #     attributes.append(np.zeros(512))
 
   # 生成時の分布をいじるetc
   sample_mean = 0
@@ -245,6 +253,15 @@ def run(config_map):
   sample_std_path = os.path.expanduser(FLAGS.sample_std) if FLAGS.sample_std else None
   if sample_std_path and os.path.exists(sample_std_path):
     sample_std = np.load(sample_std_path)
+
+  # 後付け属性改
+  attribute_vectors_paths = [os.path.expanduser(path) for path in FLAGS.attribute_vectors] if FLAGS.attribute_vectors else None
+  if attribute_vectors_paths:
+    for path in attribute_vectors_paths:
+      attribute_vector = np.load(path)
+      attributes.append(attribute_vector)
+
+  # 追加変数ここまで
 
   logging.info('Loading model...')
   if FLAGS.run_dir:
@@ -292,7 +309,8 @@ def run(config_map):
         temperature=FLAGS.temperature,
         savez=FLAGS.savez,
         z_vectors=attributes,
-        magnitudes=[FLAGS.magnitude_1, FLAGS.magnitude_2],
+        # magnitudes=[FLAGS.magnitude_1, FLAGS.magnitude_2],
+        magnitudes=FLAGS.vector_amounts,
         mean=sample_mean,
         std=sample_std)
     if FLAGS.savez:

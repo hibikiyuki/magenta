@@ -203,7 +203,7 @@ class TrainedModel(object):
       
   def sample_withattr(self, n=None, length=None, temperature=1.0, same_z=False, 
                       c_input=None, 
-                      savez=False, z_vectors=None, magnitudes=[0.5, 0.5], mean=None, std=None):
+                      savez=False, z_vectors=None, magnitudes=None, mean=None, std=None):
     """Generates random samples with attribute vectors from the model.
 
     Args:
@@ -241,6 +241,7 @@ class TrainedModel(object):
         raise ValueError(
           "The number of z vectors must match the number of magnitudes.")
       z_array = np.stack(z_vectors)
+      magnitudes = np.array(magnitudes, dtype=np.float32)
       attribute = np.dot(z_array.T, magnitudes) # (512,)
 
     feed_dict = {
